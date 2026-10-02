@@ -93,9 +93,11 @@ call setup ─► caller-ID attestation, number age, saved-contact mismatch, voi
 ```
 
 - **The rules are a floor.** The rules always run on what the caller said: money, gift cards/crypto/wire/courier, an emergency, "don't tell anyone", urgency, a "lawyer" or "officer" taking over. The content score is the higher of the model's reading and the rules, so the model can add risk the rules miss but can never talk it below them. A scammer who words things to fool the model still hits the rules.
-- **Untraceable payment counts as money.** A demand for gift cards, crypto, a wire or a courier escalates like any money request, even with no "money" or "dollars" in the sentence.
+- **Untraceable payment counts as money.** A demand for gift cards, crypto, a wire, or a courier collecting cash escalates like any money request, even with no "money" or "dollars" in the sentence. A courier delivering a parcel does not count.
+- **Some combinations always escalate.** Untraceable payment together with secrecy, an emergency or a "lawyer"/"officer" is treated as a scam whoever is calling, even a verified saved contact (a stolen phone or hijacked account).
 - **English, French, Arabic and Darja.** The rules cover all four, Darja in both Arabic script and Latin letters (e.g. *ab3atli flexy drok*, *ma tgoulch*), with accents and hamza forms normalised.
-- **Fewer false alarms on real family.** A verified call (STIR/SHAKEN attestation A) from a saved contact's own number gets a fixed credit, so a son calling from his phone about a hospital bill isn't flagged. A clear scam pattern from that number still escalates.
+- **Fewer false alarms on real family.** A verified call (STIR/SHAKEN attestation A) from a saved contact's own number gets a fixed credit, so a son calling from his phone about a hospital bill isn't flagged. The credit is withdrawn when the always-escalate combination appears, and the call-back button is skipped, since it would ring the same phone.
+- **Spoofed family numbers.** A call showing a saved contact's number without verified caller ID (attestation B or C) is a classic spoofing sign and is weighted up. The call-back button then dials the real contact.
 - **The policy acts, not the model.** The model's only job is to call `record_signals`. Warnings, the call-back button and the family alert are fired by code from the score and the thresholds.
 - **It fails closed.** If the model skips the tool, sends invalid arguments, times out or errors, or the gateway rejects the key mid-call, the turn is still scored by the network, voice and rules signals, and the protection still fires. The output and API response say so (`model_error`, `gateway_refused`).
 - **Untrusted input.** The transcript is passed to the model as data, with an instruction to ignore anything inside it that reads like a command.
@@ -137,6 +139,7 @@ The tests need no gateway or key: a scripted stand-in model drives the agent. Th
 - consent
 - `.env` thresholds
 - gift-card demands, a real son on his verified number, a rejected gateway key mid-call
+- gift cards plus secrecy from a verified contact, a parcel delivery, a courier collecting cash, a spoofed saved number
 - scams and everyday calls in French and Darja (Arabic script and Latin letters)
 
 ## Limits and next steps
