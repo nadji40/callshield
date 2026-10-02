@@ -177,6 +177,31 @@ def test_verified_number_does_not_hide_a_clear_scam():
     assert out["verdict"] == "SCAM LIKELY"
 
 
+def test_gift_cards_with_secrecy_escalate_even_from_a_verified_contact():
+    out = run(make(), lines(SON, "Mum it's me, I'm in jail, buy gift cards now, don't tell Dad"))
+    assert out["verdict"] == "SCAM LIKELY"
+    assert "red_flag_combo" in out["signals"]["rule_hits"]
+    assert "alert_trusted_contact" in out["actions"]
+    assert "suggest_callback" not in out["actions"]
+
+
+def test_parcel_delivery_call_is_not_flagged():
+    out = run(make(), lines(UNKNOWN, "Hi, this is the courier, your parcel arrives today, can you confirm the address?"))
+    assert out["actions"] == {}
+
+
+def test_courier_collecting_cash_is_flagged():
+    out = run(make(), lines(UNKNOWN, "Grandma, a courier will come to pick up the cash for the bail, don't tell anyone"))
+    assert out["verdict"] == "SCAM LIKELY"
+
+
+def test_spoofed_saved_number_escalates():
+    spoofed = dict(SON, stir_shaken_attestation="C")
+    out = run(make(), lines(spoofed, "Mum it's me, I had an accident, I need you to send money tonight"))
+    assert out["verdict"] == "SCAM LIKELY"
+    assert set(out["actions"]) == {"warn_callee", "suggest_callback", "alert_trusted_contact"}
+
+
 @pytest.mark.parametrize("said", [
     "Mamie c'est moi, j'ai eu un accident, la police est là. Achète des cartes cadeaux de 500 euros tout de suite et ne dis rien à papa",
     "Allo mama, ana f l'hbs, ab3atli flexy drok w ma tgoulch l baba",

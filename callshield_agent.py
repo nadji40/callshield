@@ -110,7 +110,8 @@ RULES_BY_LANGUAGE = {
                  r"|\b(thousand|hundred)\s+(dollars|pounds|euros)\b|[$£€]\s?\d|\b\d[\d,.]*\s*(dollars|pounds|euros)\b"
                  r"|\baccount (number|details)\b|\bbail is\b",
         "risky_rail": r"gift ?cards?|itunes|google play|steam card|bitcoin|crypto|usdt|\bwire (it|the money|transfer)\b"
-                      r"|western union|moneygram|courier|pick up the (cash|money)",
+                      r"|western union|moneygram|pick up the (cash|money)"
+                      r"|courier[^.?!]{0,40}\b(cash|money|payment)\b|\b(cash|money|payment)\b[^.?!]{0,40}courier",
         "emergency": r"accident|car crash|hospital|arrest|jail|custody|\bbail\b|kidnap|surgery|police",
         "secrecy": r"don'?t tell|do not tell|keep (this|it) (between us|quiet|secret|confidential)|confidential|sealed case|nobody can know",
         "urgency": r"\btonight\b|right now|immediately|\btoday\b|hurry|in the next \w+ minutes|before it'?s too late",
@@ -119,7 +120,8 @@ RULES_BY_LANGUAGE = {
     "fr": {
         "money": r"\b(envoie|envoyer|envoyez|vire|virer|virement|paye|payer|payez|preter|prete|avance)\b[^.?!]{0,40}\b(argent|euros?|dinars?|mille|cents?|caution)\b"
                  r"|\bbesoin (d'|de l')?argent\b|\b(mille|cents?)\s+(euros|dinars|dollars)\b|\b\d[\d .,]*\s*(euros?|dinars?)\b",
-        "risky_rail": r"cartes? cadeaux?|neosurf|transcash|pcs mastercard|coupons? pcs|mandat cash|coursier|bitcoin|crypto",
+        "risky_rail": r"cartes? cadeaux?|neosurf|transcash|pcs mastercard|coupons? pcs|mandat cash|bitcoin|crypto"
+                      r"|coursier[^.?!]{0,40}\b(argent|especes|liquide|cash)\b|\b(argent|especes|liquide|cash)\b[^.?!]{0,40}coursier",
         "emergency": r"accident|hopital|arrete|garde a vue|prison|caution|police|gendarmerie|enleve|kidnapp|operation urgente",
         "secrecy": r"ne (le |lui |leur )?dis (rien|pas)|ne dis a personne|n'?en parle a personne|garde (ca|le) pour toi|c'est (confidentiel|secret)|personne ne doit savoir",
         "urgency": r"tout de suite|immediatement|\bmaintenant\b|ce soir|aujourd'?hui|\bvite\b|depeche|\burgent|dans (les )?\w+ minutes",
@@ -148,6 +150,7 @@ RULES = {k: "|".join(f"(?:{lang[k]})" for lang in RULES_BY_LANGUAGE.values()) fo
 RULE_WEIGHTS = {"money": 0.20, "risky_rail": 0.15, "emergency": 0.10, "secrecy": 0.15, "urgency": 0.15, "authority": 0.10}
 RISKY_RAILS = {"gift_card", "crypto", "wire", "cash_courier"}
 VERIFIED_CONTACT_CREDIT = 0.20
+SPOOFED_CONTACT_PENALTY = {"B": 0.10, "C": 0.20}
 
 
 def normalize(text: str) -> str:
@@ -178,8 +181,8 @@ def content_risk(s: ScamSignals) -> float:
     return r
 
 
-def network_risk(caller: dict, sub: dict) -> tuple[float, list[str]]:
-    why, r = [], 0.0
+def network_risk(caller: dict, sub: dict) -> tuple[float, list[str], float]:
+    why, r, credit = [], 0.0, 0.0
     att = caller.get("stir_shaken_attestation", "C")
     r += {"A": 0.0, "B": 0.08, "C": 0.15}.get(att, 0.15)
     if att != "A":
@@ -192,10 +195,14 @@ def network_risk(caller: dict, sub: dict) -> tuple[float, list[str]]:
     if claimed in saved and saved[claimed] != caller.get("number"):
         r += 0.20
         why.append(f"claims to be '{caller['display_name']}' but not from their saved number")
-    if att == "A" and caller.get("number") in saved.values():
-        r -= VERIFIED_CONTACT_CREDIT
-        why.append("verified call from a saved contact's own number")
-    return r, why
+    if caller.get("number") in saved.values():
+        if att == "A":
+            credit = VERIFIED_CONTACT_CREDIT
+            why.append("verified call from a saved contact's own number")
+        else:
+            r += SPOOFED_CONTACT_PENALTY.get(att, 0.20)
+            why.append(f"shows a saved contact's number but caller ID is not verified (attestation {att}): possible spoofing")
+    return r, why, credit
 
 
 @dataclass
@@ -290,8 +297,8 @@ class CallShield:
 
     def start_call(self, subscriber: dict, caller: dict, call_id: str | None = None) -> CallSession:
         s = CallSession(call_id or uuid.uuid4().hex[:12], subscriber, caller)
-        r, why = network_risk(caller, subscriber)
-        s.setup = {"network_risk": round(r, 2), "findings": why or ["nothing unusual"]}
+        r, why, credit = network_risk(caller, subscriber)
+        s.setup = {"network_risk": round(r, 2), "verified_contact_credit": credit, "findings": why or ["nothing unusual"]}
         s.voice = float(caller.get("voice_clone_score", 0.0))
         with self._lock:
             self.sessions[s.call_id] = s
@@ -359,9 +366,15 @@ class CallShield:
         rules = rule_check(s.caller_text)
         content = max(content_risk(sig) if sig else 0.0, rule_risk(rules))
         voice = 0.35 * s.voice if s.voice >= 0.5 else 0.0
-        s.risk = max(0.0, min(1.0, s.setup["network_risk"] + voice + content))
+        untraceable = rules["risky_rail"] or bool(sig and sig.payment_rail in RISKY_RAILS)
+        pressure = rules["secrecy"] or rules["emergency"] or rules["authority"] or bool(sig and (sig.secrecy_request or sig.authority_handoff))
+        red_flag_combo = untraceable and pressure
+        credit = 0.0 if red_flag_combo else s.setup["verified_contact_credit"]
+        s.risk = max(0.0, min(1.0, s.setup["network_risk"] - credit + voice + content))
+        if red_flag_combo:
+            s.risk = max(s.risk, self.policy.escalate_at)
         s.peak = max(s.peak, s.risk)
-        hit_names = [k for k in RULE_WEIGHTS if rules[k]]
+        hit_names = [k for k in RULE_WEIGHTS if rules[k]] + (["red_flag_combo"] if red_flag_combo else [])
         s.signals = {
             "money_request": bool((sig and sig.money_request) or rules["money"] or rules["risky_rail"]),
             "amount": (sig.amount if sig else None) or rules["amount"],
@@ -377,7 +390,8 @@ class CallShield:
             events += self._fire(s, "warn_callee", "in-call tone + banner: 'This call shows signs of a scam. Don't send money yet.'")
         if s.risk >= p.escalate_at and sig["money_request"]:
             c = s.saved_contact(sig["claimed_name"])
-            if c:
+            same_phone = c and c["number"] == s.caller.get("number") and s.caller.get("stir_shaken_attestation") == "A"
+            if c and not same_phone:
                 events += self._fire(s, "suggest_callback", f"button: 'Call {c['name']} on their saved number {c['number']}'")
             tc = s.subscriber.get("trusted_contact")
             if tc:
