@@ -1,0 +1,22 @@
+{
+ "title": "The film's call: a cloned voice asks a friend for $2,000",
+ "subscriber": {
+  "name": "Sam", "callshield_enabled": true,
+  "contacts": [{"name": "Nadji", "number": "+1 415 555 0142"}],
+  "trusted_contact": {"name": "Lena (sister)", "number": "+1 415 555 0199"}
+ },
+ "caller": {"number": "+1 646 555 0187", "display_name": "Nadji", "stir_shaken_attestation": "C",
+            "number_age_days": 3, "voice_clone_score": 0.91},
+ "transcript": [
+  {"t": 0.4, "speaker": "callee", "text": "Hello?"},
+  {"t": 2.2, "speaker": "caller", "text": "Hey... it's me. Sorry, I know it's late."},
+  {"t": 5.4, "speaker": "callee", "text": "Hey man, no worries. What's going on?"},
+  {"t": 7.8, "speaker": "caller", "text": "I had an accident. I'm okay, but the other guy is hurt, and the police are here."},
+  {"t": 13.6, "speaker": "callee", "text": "Wait, what? Are you okay? Where are you?"},
+  {"t": 16.7, "speaker": "caller", "text": "On the highway. They're saying if I don't cover the damage tonight, they're keeping me here."},
+  {"t": 23.7, "speaker": "callee", "text": "Okay, okay. How much do you need?"},
+  {"t": 26.4, "speaker": "caller", "text": "Two thousand dollars. My cards are blocked, I can't do anything from here. I'll pay you back tomorrow, I swear."},
+  {"t": 34.7, "speaker": "callee", "text": "Don't worry about it. Send me the account, I'm doing it right now."},
+  {"t": 38.9, "speaker": "caller", "text": "Thank you, brother. And please, don't tell anyone yet. I don't want my mom to panic."}
+ ]
+}

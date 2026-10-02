@@ -1,0 +1,21 @@
+{
+ "title": "Grandparent scam: 'grandson' arrested, a 'lawyer' asks for bail in gift cards",
+ "subscriber": {
+  "name": "Margaret (78)", "callshield_enabled": true,
+  "contacts": [{"name": "Daniel", "number": "+44 7700 900461"}],
+  "trusted_contact": {"name": "Claire (daughter)", "number": "+44 7700 900122"}
+ },
+ "caller": {"number": "+44 20 7946 0958", "display_name": "Unknown", "stir_shaken_attestation": "C",
+            "number_age_days": 1, "voice_clone_score": 0.84},
+ "transcript": [
+  {"t": 0.5, "speaker": "callee", "text": "Hello, who's this?"},
+  {"t": 1.9, "speaker": "caller", "text": "Grandma, it's me, Daniel. I'm in trouble and I really need your help."},
+  {"t": 5.6, "speaker": "callee", "text": "Daniel? You sound different, love. What happened?"},
+  {"t": 7.9, "speaker": "caller", "text": "I've got a cold. I was in a car crash and they arrested me. Please don't tell Mum, she'll be so angry."},
+  {"t": 14.2, "speaker": "callee", "text": "Oh my goodness. Are you hurt?"},
+  {"t": 16.0, "speaker": "caller", "text": "I'm fine. My lawyer is here, he'll explain. Mr Collins?"},
+  {"t": 19.4, "speaker": "caller", "text": "Good afternoon madam, I'm Daniel's solicitor. Bail is three thousand pounds and it has to be paid today or he stays in custody overnight."},
+  {"t": 27.8, "speaker": "callee", "text": "Today? How do I pay that?"},
+  {"t": 29.6, "speaker": "caller", "text": "The court accepts gift cards for urgent bail. Buy them at any shop and read me the numbers. And please keep this confidential, it's a sealed case."}
+ ]
+}

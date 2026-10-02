@@ -1,0 +1,18 @@
+{
+ "title": "Normal call: a daughter, from her saved number, about groceries",
+ "subscriber": {
+  "name": "Robert (71)", "callshield_enabled": true,
+  "contacts": [{"name": "Anna", "number": "+1 312 555 0176"}],
+  "trusted_contact": {"name": "Anna (daughter)", "number": "+1 312 555 0176"}
+ },
+ "caller": {"number": "+1 312 555 0176", "display_name": "Anna", "stir_shaken_attestation": "A",
+            "number_age_days": 2900, "voice_clone_score": 0.04},
+ "transcript": [
+  {"t": 0.4, "speaker": "callee", "text": "Hi sweetheart."},
+  {"t": 1.6, "speaker": "caller", "text": "Hi Dad! I'm at the store, do you still need milk and the blood pressure tablets?"},
+  {"t": 6.1, "speaker": "callee", "text": "Yes please, and some bread."},
+  {"t": 8.0, "speaker": "caller", "text": "Got it. It's about forty dollars, you can pay me back on Sunday at lunch, no rush."},
+  {"t": 13.2, "speaker": "callee", "text": "Thank you, see you Sunday."},
+  {"t": 14.5, "speaker": "caller", "text": "Love you, I'll drop it by tonight."}
+ ]
+}

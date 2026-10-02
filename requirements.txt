@@ -1,0 +1,4 @@
+langchain-core>=1.6
+langchain-openai>=1.6
+langchain-anthropic>=1.7.5
+pydantic>=2
