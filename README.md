@@ -57,7 +57,7 @@ python callshield_agent.py run --all --rules-only
    result: SCAM LIKELY · peak risk 1.00 · actions ['warn_callee', 'suggest_callback', 'alert_trusted_contact']
 
 ═══ Normal call: a daughter, from her saved number, about groceries ═══
-   result: LOOKS NORMAL · peak risk 0.15 · actions none
+   result: LOOKS NORMAL · peak risk 0.00 · actions none
 ```
 
 ## Run it with your AI gateway
@@ -93,8 +93,11 @@ call setup ─► caller-ID attestation, number age, saved-contact mismatch, voi
 ```
 
 - **The rules are a floor.** The rules always run on what the caller said: money, gift cards/crypto/wire/courier, an emergency, "don't tell anyone", urgency, a "lawyer" or "officer" taking over. The content score is the higher of the model's reading and the rules, so the model can add risk the rules miss but can never talk it below them. A scammer who words things to fool the model still hits the rules.
+- **Untraceable payment counts as money.** A demand for gift cards, crypto, a wire or a courier escalates like any money request, even with no "money" or "dollars" in the sentence.
+- **English, French, Arabic and Darja.** The rules cover all four, Darja in both Arabic script and Latin letters (e.g. *ab3atli flexy drok*, *ma tgoulch*), with accents and hamza forms normalised.
+- **Fewer false alarms on real family.** A verified call (STIR/SHAKEN attestation A) from a saved contact's own number gets a fixed credit, so a son calling from his phone about a hospital bill isn't flagged. A clear scam pattern from that number still escalates.
 - **The policy acts, not the model.** The model's only job is to call `record_signals`. Warnings, the call-back button and the family alert are fired by code from the score and the thresholds.
-- **It fails closed.** If the model skips the tool, sends invalid arguments, times out or errors, the turn is still scored by the network, voice and rules signals, and the protection still fires. The output says so.
+- **It fails closed.** If the model skips the tool, sends invalid arguments, times out or errors, or the gateway rejects the key mid-call, the turn is still scored by the network, voice and rules signals, and the protection still fires. The output and API response say so (`model_error`, `gateway_refused`).
 - **Untrusted input.** The transcript is passed to the model as data, with an instruction to ignore anything inside it that reads like a command.
 - **Speed.** Network and voice signals are computed once at call setup, so each caller line costs one model call (two if the model needs a retry). Every turn is timed: `run` prints the latency per line and per call, the API returns `latency_ms`, and `check` times a test call. Rules-only turns take about a millisecond.
 
@@ -133,10 +136,13 @@ The tests need no gateway or key: a scripted stand-in model drives the agent. Th
 - one model call per line
 - consent
 - `.env` thresholds
+- gift-card demands, a real son on his verified number, a rejected gateway key mid-call
+- scams and everyday calls in French and Darja (Arabic script and Latin letters)
 
 ## Limits and next steps
 - **Voice clones:** the voice-clone score in the samples is a placeholder. Production needs an audio deepfake detector on the live stream.
 - **Model accuracy:** the rules and weights are hand-set. Tune them, and measure the model's accuracy, false alarms and latency on labelled, consented call data before any pilot.
+- **Languages:** the French, Arabic and Darja word lists are a first pass. Native speakers should extend them, and other languages need their own lists.
 - **Transcripts:** in production they come from the carrier's real-time speech-to-text; here they come from the sample files.
 
 ---
