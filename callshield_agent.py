@@ -8,6 +8,7 @@ import re
 import sys
 import threading
 import time
+import unicodedata
 import urllib.request
 import uuid
 from dataclasses import dataclass, field
@@ -103,27 +104,65 @@ class ScamSignals(BaseModel):
     rationale: str = Field(description="One short sentence naming the strongest evidence")
 
 
-RULES = {
-    "money": r"\b(send|wire|transfer|pay|cover|need|lend)\b[^.?!]{0,40}\b(money|dollars?|pounds?|euros?|thousand|hundred|bail)\b"
-             r"|\b(thousand|hundred)\s+(dollars|pounds|euros)\b|[$£€]\s?\d|\b\d[\d,.]*\s*(dollars|pounds|euros)\b"
-             r"|\baccount (number|details)\b|\bbail is\b",
-    "risky_rail": r"gift ?cards?|itunes|google play|steam card|bitcoin|crypto|usdt|\bwire (it|the money|transfer)\b"
-                  r"|western union|moneygram|courier|pick up the (cash|money)",
-    "emergency": r"accident|car crash|hospital|arrest|jail|custody|\bbail\b|kidnap|surgery|police",
-    "secrecy": r"don'?t tell|do not tell|keep (this|it) (between us|quiet|secret|confidential)|confidential|sealed case|nobody can know",
-    "urgency": r"\btonight\b|right now|immediately|\btoday\b|hurry|in the next \w+ minutes|before it'?s too late",
-    "authority": r"\blawyer\b|solicitor|attorney|public defender|\bofficer\b|sergeant|detective|\bcourt\b",
+RULES_BY_LANGUAGE = {
+    "en": {
+        "money": r"\b(send|wire|transfer|pay|cover|need|lend)\b[^.?!]{0,40}\b(money|dollars?|pounds?|euros?|thousand|hundred|bail)\b"
+                 r"|\b(thousand|hundred)\s+(dollars|pounds|euros)\b|[$£€]\s?\d|\b\d[\d,.]*\s*(dollars|pounds|euros)\b"
+                 r"|\baccount (number|details)\b|\bbail is\b",
+        "risky_rail": r"gift ?cards?|itunes|google play|steam card|bitcoin|crypto|usdt|\bwire (it|the money|transfer)\b"
+                      r"|western union|moneygram|courier|pick up the (cash|money)",
+        "emergency": r"accident|car crash|hospital|arrest|jail|custody|\bbail\b|kidnap|surgery|police",
+        "secrecy": r"don'?t tell|do not tell|keep (this|it) (between us|quiet|secret|confidential)|confidential|sealed case|nobody can know",
+        "urgency": r"\btonight\b|right now|immediately|\btoday\b|hurry|in the next \w+ minutes|before it'?s too late",
+        "authority": r"\blawyer\b|solicitor|attorney|public defender|\bofficer\b|sergeant|detective|\bcourt\b",
+    },
+    "fr": {
+        "money": r"\b(envoie|envoyer|envoyez|vire|virer|virement|paye|payer|payez|preter|prete|avance)\b[^.?!]{0,40}\b(argent|euros?|dinars?|mille|cents?|caution)\b"
+                 r"|\bbesoin (d'|de l')?argent\b|\b(mille|cents?)\s+(euros|dinars|dollars)\b|\b\d[\d .,]*\s*(euros?|dinars?)\b",
+        "risky_rail": r"cartes? cadeaux?|neosurf|transcash|pcs mastercard|coupons? pcs|mandat cash|coursier|bitcoin|crypto",
+        "emergency": r"accident|hopital|arrete|garde a vue|prison|caution|police|gendarmerie|enleve|kidnapp|operation urgente",
+        "secrecy": r"ne (le |lui |leur )?dis (rien|pas)|ne dis a personne|n'?en parle a personne|garde (ca|le) pour toi|c'est (confidentiel|secret)|personne ne doit savoir",
+        "urgency": r"tout de suite|immediatement|\bmaintenant\b|ce soir|aujourd'?hui|\bvite\b|depeche|\burgent|dans (les )?\w+ minutes",
+        "authority": r"\bavocat|\bpolicier|\bofficier|\bgendarme\b|\bjuge\b|tribunal|commissaire",
+    },
+    "ar": {
+        "money": r"(ابعث|ابعثلي|ارسل|ارسلي|حول|حوللي|خلص|ادفع|سلفني|اعطيني)[^.؟!?]{0,40}(فلوس|دراهم|مال|دينار|الف|مليون|يورو|دولار)"
+                 r"|(محتاج|نحتاج|لازمني)\s*(ل)?(فلوس|دراهم)|\b(الف|مليون)\s+(دينار|يورو|دولار)",
+        "risky_rail": r"بطاق(ه|ة|ات) (هدايا|هديه|هدية|شحن)|بيتكوين|كريبتو|ويسترن|فليكسي|فليكسيلي",
+        "emergency": r"حادث|مستشفى|سبيطار|الحبس|حبسوني|سجن|بوليس|شرط(ه|ة)|كفال(ه|ة)|الدرك|عملي(ه|ة) مستعجل",
+        "secrecy": r"لا (تقل|تقول|تخبر)|ما ?تقولش|ما ?تخبرش|ما تقول (ل)?(حتى|حتا) واحد|خليها بيناتنا|سر بيناتنا",
+        "urgency": r"\bالان\b|\bدرك\b|\bدروك\b|\bضرك\b|\bدوك\b|\bحالا\b|بسرع(ه|ة)|\bاليوم\b|الليل(ه|ة)|\bعاجل\b|\bدغيا\b",
+        "authority": r"محامي|\bمحام\b|ضابط|شرطي|قاضي|محكم(ه|ة)",
+    },
+    "darja": {
+        "money": r"\b(ab3ath|ab3athli|ab3at|ab3atli|b3athli|b3atli|7awel|7awelli|khalles|khales|selefni|a3tini)\b[^.?!]{0,40}\b(drahem|drahm|flous|flouss|dinar|alf|melyoun|mlyoun|sold|euro)"
+                 r"|\b(drahem|flouss?)\b",
+        "risky_rail": r"\bflexy\b|flexili|flexyli|carte cadeau",
+        "emergency": r"\bsbitar\b|\bspitar\b|\bl?hbs\b|\b7abs\b|\b7bes\b|\bboulis\b|\baksida\b|\bkssida\b|\bdarak\b",
+        "secrecy": r"\bma ?t(e)?goul(ch|sh)?\b|\bma ?t9oul(ch|sh)?\b|\bma ?tkhabar(ch|sh)\b|khaliha binatna",
+        "urgency": r"\bdrok\b|\bdork\b|\bdorka\b|\bdaba\b|\btawa\b|\bdghya\b|\bdghia\b|\bfissa\b|\bl?youm\b|\bellila\b|bezzerba|\bb ?zerba\b",
+        "authority": r"\bavoka\b|mo7ami|\bm7ami\b|l?7akem|commissariat",
+    },
 }
+RULES = {k: "|".join(f"(?:{lang[k]})" for lang in RULES_BY_LANGUAGE.values()) for k in RULES_BY_LANGUAGE["en"]}
 RULE_WEIGHTS = {"money": 0.20, "risky_rail": 0.15, "emergency": 0.10, "secrecy": 0.15, "urgency": 0.15, "authority": 0.10}
 RISKY_RAILS = {"gift_card", "crypto", "wire", "cash_courier"}
+VERIFIED_CONTACT_CREDIT = 0.20
+
+
+def normalize(text: str) -> str:
+    t = unicodedata.normalize("NFKD", text.lower())
+    t = "".join(ch for ch in t if not unicodedata.combining(ch))
+    return t.replace("’", "'").replace("ـ", "").replace("ى", "ي")
 
 
 def rule_check(caller_text: str) -> dict:
-    t = caller_text.lower().replace("’", "'")
+    t = normalize(caller_text)
     hits = {k: bool(re.search(p, t)) for k, p in RULES.items()}
-    named = re.search(r"it'?s me,?\s+([a-z]+)", t)
+    named = re.search(r"(?:it'?s me|c'?est moi),?\s+([a-z]+)", t)
     hits["claimed_name"] = named.group(1).title() if named and named.group(1) not in ("again", "here", "sorry") else None
-    amt = re.search(r"[$£€]\s?\d[\d,.]*|\b[a-z-]+ (thousand|hundred) (dollars|pounds|euros)\b|\b\d[\d,.]*\s*(dollars|pounds|euros)\b", t)
+    amt = re.search(r"[$£€]\s?\d[\d,.]*|\b[a-z-]+ (thousand|hundred|mille|cents?) (dollars|pounds|euros|dinars)\b"
+                    r"|\b\d[\d,.]*\s*(dollars|pounds|euros?|dinars?)\b", t)
     hits["amount"] = amt.group(0) if amt else None
     return hits
 
@@ -153,6 +192,9 @@ def network_risk(caller: dict, sub: dict) -> tuple[float, list[str]]:
     if claimed in saved and saved[claimed] != caller.get("number"):
         r += 0.20
         why.append(f"claims to be '{caller['display_name']}' but not from their saved number")
+    if att == "A" and caller.get("number") in saved.values():
+        r -= VERIFIED_CONTACT_CREDIT
+        why.append("verified call from a saved contact's own number")
     return r, why
 
 
@@ -277,19 +319,21 @@ class CallShield:
                 return {"call_id": call_id, "analyzed": s.enabled, "risk": round(s.risk, 2),
                         "verdict": self.policy.verdict(s.risk), "events": []}
             t0 = time.perf_counter()
-            sig, calls, err = None, 0, None
+            sig, calls, err, refused = None, 0, None, False
             if self.tooled is not None:
                 try:
                     sig, calls = self._ask_model(s)
-                except CONFIG_ERRORS:
-                    raise
+                except CONFIG_ERRORS as e:
+                    err, refused = f"gateway refused the request ({type(e).__name__})", True
+                    print(f"[callshield] {call_id}: {err}; check the key and model. Rules kept protecting.", file=sys.stderr, flush=True)
                 except Exception as e:
                     err = f"{type(e).__name__}: {e}"
                 if sig is None and err is None:
                     err = "model did not report signals"
             self._score(s, sig)
             events = self._enforce(s)
-            turn = {"t": t, "latency_ms": round((time.perf_counter() - t0) * 1000), "model_calls": calls, "model_error": err}
+            turn = {"t": t, "latency_ms": round((time.perf_counter() - t0) * 1000), "model_calls": calls, "model_error": err,
+                    "gateway_refused": refused}
             s.turns.append(turn)
             return {"call_id": call_id, "analyzed": True, "risk": round(s.risk, 2), "verdict": self.policy.verdict(s.risk),
                     "events": events, "rationale": s.signals["rationale"], **turn}
@@ -315,11 +359,11 @@ class CallShield:
         rules = rule_check(s.caller_text)
         content = max(content_risk(sig) if sig else 0.0, rule_risk(rules))
         voice = 0.35 * s.voice if s.voice >= 0.5 else 0.0
-        s.risk = min(1.0, s.setup["network_risk"] + voice + content)
+        s.risk = max(0.0, min(1.0, s.setup["network_risk"] + voice + content))
         s.peak = max(s.peak, s.risk)
         hit_names = [k for k in RULE_WEIGHTS if rules[k]]
         s.signals = {
-            "money_request": bool((sig and sig.money_request) or rules["money"]),
+            "money_request": bool((sig and sig.money_request) or rules["money"] or rules["risky_rail"]),
             "amount": (sig.amount if sig else None) or rules["amount"],
             "claimed_name": (sig.claimed_name if sig else None) or rules["claimed_name"],
             "rule_hits": hit_names,
@@ -393,6 +437,9 @@ def cmd_run(shield: CallShield, paths: list[str], report: str | None) -> None:
                 extra = f" · {r['model_calls']} model call(s)" if shield.tooled is not None else ""
                 warn = f"  \033[33m(model: {r['model_error']}; rules kept protecting)\033[0m" if r["model_error"] else ""
                 print(f"          risk {bar(r['risk'], shield.policy)}  {r['latency_ms']} ms{extra}  {r['rationale'][:110]}{warn}")
+                if r["gateway_refused"]:
+                    sys.exit("The gateway refused the request: check the key and that the model exists. "
+                             "The rules still scored that line; run `check` to test the gateway.")
         summ = shield.end_call(s.call_id)
         if summ["analyzed"]:
             print(f"   result: \033[1m{summ['verdict']}\033[0m · peak risk {summ['peak_risk']:.2f} · actions {list(summ['actions']) or 'none'}"

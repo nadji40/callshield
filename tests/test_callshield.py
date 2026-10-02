@@ -148,3 +148,65 @@ def test_every_caller_turn_is_timed():
     out = run(make(), load("friend_accident.json"))
     assert out["caller_turns"] == 5
     assert out["latency_ms"]["max"] >= out["latency_ms"]["avg"] >= 0
+
+
+SUB = {"name": "Margaret", "callshield_enabled": True, "contacts": [{"name": "Tom", "number": "+1 555 0100"}],
+       "trusted_contact": {"name": "Claire", "number": "+1 555 0101"}}
+UNKNOWN = {"number": "+1 555 0199", "display_name": "Unknown", "stir_shaken_attestation": "C", "number_age_days": 2}
+SON = {"number": "+1 555 0100", "display_name": "Tom", "stir_shaken_attestation": "A", "number_age_days": 3000, "voice_clone_score": 0.02}
+
+
+def lines(caller, *said):
+    return {"subscriber": SUB, "caller": caller, "transcript": [{"speaker": "caller", "text": t} for t in said]}
+
+
+def test_gift_card_demand_escalates_without_a_money_word():
+    out = run(make(), lines(UNKNOWN, "Buy gift cards and read me the numbers, don't tell Mum, I'm in jail"))
+    assert out["verdict"] == "SCAM LIKELY"
+    assert "alert_trusted_contact" in out["actions"]
+
+
+def test_real_son_on_his_verified_number_is_not_warned():
+    out = run(make(), lines(SON, "I'm at the hospital visiting grandpa, I'll call you tonight",
+                            "can you pay the bill today, I'll send you the money back"))
+    assert out["actions"] == {}
+
+
+def test_verified_number_does_not_hide_a_clear_scam():
+    out = run(make(), lines(dict(SON, voice_clone_score=0.9), "Mum it's me, I'm in jail, buy gift cards right now and don't tell anyone"))
+    assert out["verdict"] == "SCAM LIKELY"
+
+
+@pytest.mark.parametrize("said", [
+    "Mamie c'est moi, j'ai eu un accident, la police est là. Achète des cartes cadeaux de 500 euros tout de suite et ne dis rien à papa",
+    "Allo mama, ana f l'hbs, ab3atli flexy drok w ma tgoulch l baba",
+    "آلو ماما، راني في الحبس، ابعثلي الدراهم درك وما تقولش لبابا",
+])
+def test_french_and_darja_scams_are_flagged(said):
+    out = run(make(), lines(UNKNOWN, said))
+    assert out["verdict"] == "SCAM LIKELY"
+    assert "alert_trusted_contact" in out["actions"]
+
+
+@pytest.mark.parametrize("said", [
+    "Coucou maman, je passe ce soir, tu me rembourseras les courses dimanche",
+    "Allo mama, rani jay lyoum l'3echa, nchri lkhobz?",
+])
+def test_everyday_french_and_darja_calls_pass(said):
+    out = run(make(), lines(SON, said))
+    assert out["actions"] == {}
+
+
+def test_rejected_key_mid_call_still_protects():
+    import httpx
+    import openai
+    refused = openai.AuthenticationError("invalid key", response=httpx.Response(401, request=httpx.Request("POST", "http://gw/v1")), body=None)
+    shield = make(ScriptedModel(lambda m, n: refused))
+    call = load("grandparent_bail.json")
+    s = shield.start_call(call["subscriber"], call["caller"])
+    results = [shield.on_utterance(s.call_id, u["speaker"], u["text"]) for u in call["transcript"]]
+    caller_turns = [r for r in results if "gateway_refused" in r]
+    assert all(r["gateway_refused"] for r in caller_turns)
+    out = shield.end_call(s.call_id)
+    assert out["verdict"] == "SCAM LIKELY"
+    assert set(out["actions"]) == {"warn_callee", "suggest_callback", "alert_trusted_contact"}
