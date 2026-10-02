@@ -436,8 +436,11 @@ def cmd_serve(cfg: GatewayConfig, host: str, port: int) -> None:
 
 
 def main() -> None:
+    global WARN_AT, ESCALATE_AT
     sys.stdout.reconfigure(encoding="utf-8")
     load_env()
+    WARN_AT = float(os.environ.get("CALLSHIELD_WARN_AT", WARN_AT))
+    ESCALATE_AT = float(os.environ.get("CALLSHIELD_ESCALATE_AT", ESCALATE_AT))
     ap = argparse.ArgumentParser(description="CallShield: carrier-side scam flagging through any AI gateway")
     ap.add_argument("--gateway-url")
     ap.add_argument("--api-key")
